@@ -20,6 +20,7 @@ import torch.nn.functional as F
 from torchvision import transforms
 import torch.nn as nn
 
+
 def get_named_beta_schedule(schedule_name, num_diffusion_timesteps):
     """
     Get a pre-defined beta schedule for the given name.
@@ -173,12 +174,14 @@ class GaussianDiffusion:
             / (1.0 - self.alphas_cumprod)
         )
 
-        netArc_checkpoint = torch.load('./checkpoints/Arcface.tar')
-        netArc = netArc_checkpoint['model'].module
-        self.netArc = netArc.to('cuda').eval()
+        netArc_checkpoint = torch.load(
+            "./checkpoints/Arcface_model_only.tar", weights_only=False
+        )
+
+        netArc = netArc_checkpoint["model"].module
+        self.netArc = netArc.to("cuda").eval()
 
         self.cos = nn.CosineSimilarity(dim=1, eps=1e-6)
-
 
     def q_mean_variance(self, x_start, t):
         """
@@ -242,7 +245,14 @@ class GaussianDiffusion:
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
     def p_mean_variance(
-        self, model, x, t, src_id, clip_denoised=True, denoised_fn=None, model_kwargs=None
+        self,
+        model,
+        x,
+        t,
+        src_id,
+        clip_denoised=True,
+        denoised_fn=None,
+        model_kwargs=None,
     ):
         """
         Apply the model to get p(x_{t-1} | x_t), as well as a prediction of
@@ -520,8 +530,7 @@ class GaussianDiffusion:
         init_image=None,
         postprocess_fn=None,
         randomize_class=False,
-
-        img_id = None,
+        img_id=None,
     ):
         """
         Generate samples from the model and yield intermediate samples from
@@ -612,7 +621,9 @@ class GaussianDiffusion:
             model_kwargs=model_kwargs,
         )
         if cond_fn is not None:
-            out = self.condition_score(cond_fn, out, x, t, img_id, model_kwargs=model_kwargs)
+            out = self.condition_score(
+                cond_fn, out, x, t, img_id, model_kwargs=model_kwargs
+            )
 
         # Usually our model outputs epsilon, but we re-derive it
         # in case we used x_start or x_prev prediction.
@@ -629,7 +640,7 @@ class GaussianDiffusion:
         noise = th.randn_like(x)
         mean_pred = (
             out["pred_xstart"] * th.sqrt(alpha_bar_prev)
-            + th.sqrt(1 - alpha_bar_prev - sigma ** 2) * eps
+            + th.sqrt(1 - alpha_bar_prev - sigma**2) * eps
         )
         nonzero_mask = (
             (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
@@ -690,7 +701,6 @@ class GaussianDiffusion:
         skip_timesteps=0,
         init_image=None,
         randomize_class=False,
-
         img_id=None,
     ):
         """
@@ -713,7 +723,6 @@ class GaussianDiffusion:
             skip_timesteps=skip_timesteps,
             init_image=init_image,
             randomize_class=randomize_class,
-
             img_id=None,
         ):
             final = sample
@@ -735,8 +744,7 @@ class GaussianDiffusion:
         init_image=None,
         postprocess_fn=None,
         randomize_class=False,
-
-        img_id=None
+        img_id=None,
     ):
         """
         Use DDIM to sample from the model and yield intermediate samples from
@@ -810,7 +818,12 @@ class GaussianDiffusion:
             x_start=x_start, x_t=x_t, t=t
         )
         out = self.p_mean_variance(
-            model, x_t, t, src_id, clip_denoised=clip_denoised, model_kwargs=model_kwargs
+            model,
+            x_t,
+            t,
+            src_id,
+            clip_denoised=clip_denoised,
+            model_kwargs=model_kwargs,
         )
         kl = normal_kl(
             true_mean, true_log_variance_clipped, out["mean"], out["log_variance"]
@@ -895,9 +908,10 @@ class GaussianDiffusion:
                 ModelMeanType.EPSILON: noise,
             }[self.model_mean_type]
 
-
-            pred     = self.p_mean_variance(model, x_t, t, src_id, clip_denoised=True, model_kwargs=model_kwargs)
-            pred_x0  = pred["pred_xstart"]
+            pred = self.p_mean_variance(
+                model, x_t, t, src_id, clip_denoised=True, model_kwargs=model_kwargs
+            )
+            pred_x0 = pred["pred_xstart"]
 
             pred_id = F.interpolate(pred_x0, (112, 112))
             pred_id = self.netArc(pred_id)
